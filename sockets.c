@@ -8,7 +8,6 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <iostream.h>
 #include <fcntl.h>  
 #include <unistd.h>
 
@@ -18,7 +17,7 @@
 #define HEADER_SIZE 12
 
 int main(int argc, char **argv) {
-  
+
 }
 /*
 // connects to a socket with specifications given by 'addr'
@@ -103,7 +102,7 @@ bool connect(const struct sockaddr_storage *addr,
   *ret_fd = socket_fd;
   return true;
 }*/
-
+/*
 bool lookup_hostname(char *hostname,
                      unsigned short port_num,
                      struct sockaddr_storage *ret_addr,
@@ -144,27 +143,25 @@ bool lookup_hostname(char *hostname,
   // Clean up.
   freeaddrinfo(results);
   return true;
-}
+  }*/
 
-void *create_header(uint32_t payload_len, uint32_t psecret, uint16_t step) {
+
+// Creates a packet header. The header's field will be in network order.
+packet_header *create_header(uint32_t payload_len, uint32_t psecret, uint16_t step) {
   
-  void *header = (char *) malloc(HEADER_SIZE);
+  packet_header *header = (packet_header *) malloc(sizeof(packet_header));
   if(header == NULL) {
     return NULL;
   }
 
   // Add data into the header converting from
   // host order to network order
-  char *current_pos = header;
-  *(uint32_t *)current_pos = htonl(payload_len);
-  current_pos += 4;
-  *(uint32_t *)current_pos = htonl(psecret);
-  current_pos += 4;
-  *(uint16_t *)current_pos = htons(step);
-  current_pos += 2;
-
-  uint16_t s_number = STUDENT_NUMBER;
-  *(uint16_t *)current_pos = htons(s_number);
+  header->payload_len = htonl(payload_len);
+  header->psecret = htonl(psecret);
+  header->step = htons(step);
+  header->student_number = htons(STUDENT_NUMBER);
+  /*uint16_t s_number = STUDENT_NUMBER;
+   *(uint16_t *)current_pos = htons(s_number);*/
 
   return header;
 }
