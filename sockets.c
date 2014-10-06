@@ -8,10 +8,14 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <iostream>
+#include <iostream.h>
 #include <fcntl.h>  
 #include <unistd.h>
 
+#include "sockets.h"
+
+#define STUDENT_NUMBER 980
+#define HEADER_SIZE 12
 
 int main(int argc, char **argv) {
   
@@ -140,4 +144,27 @@ bool lookup_hostname(char *hostname,
   // Clean up.
   freeaddrinfo(results);
   return true;
+}
+
+char *create_header(uint32_t payload_len, uint32_t psecret, uint16_t step) {
+  
+  void *header = (char *) malloc(HEADER_SIZE);
+  if(header == NULL) {
+    return NULL;
+  }
+
+  // Add data into the header converting from
+  // host order to network order
+  char *current_pos = header;
+  *current_pos = htonl(payload_len);
+  current_pos += 4;
+  *current_pos = htonl(psecret);
+  current_pos += 4;
+  *current_pos = htons(step);
+  current_pos += 2;
+
+  uint16_t s_number = STUDENT_NUMBER;
+  *current_pos = htons(s_number);
+
+  return header;
 }
