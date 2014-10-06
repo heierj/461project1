@@ -16,6 +16,12 @@
 #define STUDENT_NUMBER 980
 
 int main(int argc, char **argv) {
+  struct sockaddr_storage ret_addr;
+  size_t ret_len;
+
+  int ret = lookup_hostname("amlia.cs.washington.edu", 12235, 
+                            &ret_addr, &ret_len);
+  printf("Success = %d, retlength = %d", ret, (int) ret_len);
 
   // Create the packet for part a1
   packet_header *header = create_header(12, 0, 1);
@@ -28,6 +34,8 @@ int main(int argc, char **argv) {
   memcpy(packet, header, sizeof(packet_header));
   // Set payload of packet
   strncpy((packet + sizeof(packet_header)), "hello world", a1_payload_size);
+
+
 }
 
 /*
@@ -113,7 +121,7 @@ bool connect(const struct sockaddr_storage *addr,
   *ret_fd = socket_fd;
   return true;
 }*/
-/*
+
 bool lookup_hostname(char *hostname,
                      unsigned short port_num,
                      struct sockaddr_storage *ret_addr,
@@ -129,7 +137,7 @@ bool lookup_hostname(char *hostname,
   res = getaddrinfo(hostname, NULL, &hints, &results);
   if (res != 0) {
     perror("getaddrinfo failed");
-    return false;
+    return 0;
   }
 
   // Set the port in the first result.
@@ -140,21 +148,19 @@ bool lookup_hostname(char *hostname,
     struct sockaddr_in6 *v6addr = (struct sockaddr_in6 *) results->ai_addr;
     v6addr->sin6_port = htons(port_num);
   } else {
-    std::cerr << "getaddrinfo failed to provide an IPv4 or IPv6 address";
-    std::cerr << std::endl;
+    perror("getaddrinfo failed to provide an IPv4 or IPv6 address");
     freeaddrinfo(results);
-    return false;
+    return 0;
   }
 
   // Return the first result.
-  assert(results != NULL);
   memcpy(ret_addr, results->ai_addr, results->ai_addrlen);
   *ret_len = results->ai_addrlen;
 
   // Clean up.
   freeaddrinfo(results);
-  return true;
-  }*/
+  return 1;
+}
 
 
 // Creates a packet header. The header's field will be in network order.
