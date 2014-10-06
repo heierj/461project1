@@ -14,11 +14,22 @@
 #include "sockets.h"
 
 #define STUDENT_NUMBER 980
-#define HEADER_SIZE 12
 
 int main(int argc, char **argv) {
 
+  // Create the packet for part a1
+  packet_header *header = create_header(12, 0, 1);
+  int a1_payload_size = 12;
+
+  // Allocate enough space for the packet
+  char *packet = (char *) malloc(sizeof(packet_header) + a1_payload_size);
+
+  // Copy header to packet
+  memcpy(packet, header, sizeof(packet_header));
+  // Set payload of packet
+  strncpy((packet + sizeof(packet_header)), "hello world", a1_payload_size);
 }
+
 /*
 // connects to a socket with specifications given by 'addr'
 // and uses a return parameter to send back the new socket
@@ -160,8 +171,6 @@ packet_header *create_header(uint32_t payload_len, uint32_t psecret, uint16_t st
   header->psecret = htonl(psecret);
   header->step = htons(step);
   header->student_number = htons(STUDENT_NUMBER);
-  /*uint16_t s_number = STUDENT_NUMBER;
-   *(uint16_t *)current_pos = htons(s_number);*/
 
   return header;
 }
