@@ -8,7 +8,6 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <iostream.h>
 #include <fcntl.h>  
 #include <unistd.h>
 
@@ -18,8 +17,13 @@
 #define HEADER_SIZE 12
 
 int main(int argc, char **argv) {
-  
+  struct sockaddr_storage ret_addr;
+  size_t ret_len;
+
+  int ret = lookup_hostname("amlia.cs.washington.edu", 12235, &ret_addr, &ret_len);
+  printf("Success = %d, retlength = %d", ret, (int) ret_len);
 }
+
 /*
 // connects to a socket with specifications given by 'addr'
 // and uses a return parameter to send back the new socket
@@ -104,10 +108,10 @@ bool connect(const struct sockaddr_storage *addr,
   return true;
 }*/
 
-bool lookup_hostname(char *hostname,
-                     unsigned short port_num,
-                     struct sockaddr_storage *ret_addr,
-                     size_t *ret_len) {
+int lookup_hostname(char *hostname,
+                    unsigned short port_num,
+                    struct sockaddr_storage *ret_addr,
+                    size_t *ret_len) {
 
   struct addrinfo hints, *results;
   int res;
@@ -119,7 +123,7 @@ bool lookup_hostname(char *hostname,
   res = getaddrinfo(hostname, NULL, &hints, &results);
   if (res != 0) {
     perror("getaddrinfo failed");
-    return false;
+    return 0;
   }
 
   // Set the port in the first result.
@@ -130,23 +134,21 @@ bool lookup_hostname(char *hostname,
     struct sockaddr_in6 *v6addr = (struct sockaddr_in6 *) results->ai_addr;
     v6addr->sin6_port = htons(port_num);
   } else {
-    std::cerr << "getaddrinfo failed to provide an IPv4 or IPv6 address";
-    std::cerr << std::endl;
+    perror("getaddrinfo failed to provide an IPv4 or IPv6 address");
     freeaddrinfo(results);
-    return false;
+    return 0;
   }
 
   // Return the first result.
-  assert(results != NULL);
   memcpy(ret_addr, results->ai_addr, results->ai_addrlen);
   *ret_len = results->ai_addrlen;
 
   // Clean up.
   freeaddrinfo(results);
-  return true;
+  return 1;
 }
 
-void *create_header(uint32_t payload_len, uint32_t psecret, uint16_t step) {
+char *create_header(uint32_t payload_len, uint32_t psecret, uint16_t step) {
   
   void *header = (char *) malloc(HEADER_SIZE);
   if(header == NULL) {
