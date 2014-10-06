@@ -17,11 +17,15 @@
 #define HEADER_SIZE 12
 
 int main(int argc, char **argv) {
+<<<<<<< HEAD
   struct sockaddr_storage ret_addr;
   size_t ret_len;
 
   int ret = lookup_hostname("amlia.cs.washington.edu", 12235, &ret_addr, &ret_len);
   printf("Success = %d, retlength = %d", ret, (int) ret_len);
+=======
+
+>>>>>>> a7335e6f083d5bbe4192c6c7ed1555e9b3a4be94
 }
 
 /*
@@ -108,10 +112,10 @@ bool connect(const struct sockaddr_storage *addr,
   return true;
 }*/
 
-int lookup_hostname(char *hostname,
-                    unsigned short port_num,
-                    struct sockaddr_storage *ret_addr,
-                    size_t *ret_len) {
+bool lookup_hostname(char *hostname,
+                     unsigned short port_num,
+                     struct sockaddr_storage *ret_addr,
+                     size_t *ret_len) {
 
   struct addrinfo hints, *results;
   int res;
@@ -148,25 +152,23 @@ int lookup_hostname(char *hostname,
   return 1;
 }
 
-char *create_header(uint32_t payload_len, uint32_t psecret, uint16_t step) {
+
+// Creates a packet header. The header's field will be in network order.
+packet_header *create_header(uint32_t payload_len, uint32_t psecret, uint16_t step) {
   
-  void *header = (char *) malloc(HEADER_SIZE);
+  packet_header *header = (packet_header *) malloc(sizeof(packet_header));
   if(header == NULL) {
     return NULL;
   }
 
   // Add data into the header converting from
   // host order to network order
-  char *current_pos = header;
-  *(uint32_t *)current_pos = htonl(payload_len);
-  current_pos += 4;
-  *(uint32_t *)current_pos = htonl(psecret);
-  current_pos += 4;
-  *(uint16_t *)current_pos = htons(step);
-  current_pos += 2;
-
-  uint16_t s_number = STUDENT_NUMBER;
-  *(uint16_t *)current_pos = htons(s_number);
+  header->payload_len = htonl(payload_len);
+  header->psecret = htonl(psecret);
+  header->step = htons(step);
+  header->student_number = htons(STUDENT_NUMBER);
+  /*uint16_t s_number = STUDENT_NUMBER;
+   *(uint16_t *)current_pos = htons(s_number);*/
 
   return header;
 }
