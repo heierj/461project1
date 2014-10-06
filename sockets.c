@@ -15,9 +15,10 @@
 
 int main(int argc, char **argv) {
 
+
 }
 
-char *create_header(uint32_t payload_len, uint32_t psecret, uint16_t step) {
+void *create_header(uint32_t payload_len, uint32_t psecret, uint16_t step) {
   
   void *header = (char *) malloc(HEADER_SIZE);
   if(header == NULL) {
@@ -27,15 +28,15 @@ char *create_header(uint32_t payload_len, uint32_t psecret, uint16_t step) {
   // Add data into the header converting from
   // host order to network order
   char *current_pos = header;
-  *current_pos = htonl(payload_len);
+  *(uint32_t *)current_pos = htonl(payload_len);
   current_pos += 4;
-  *current_pos = htonl(psecret);
+  *(uint32_t *)current_pos = htonl(psecret);
   current_pos += 4;
-  *current_pos = htons(step);
+  *(uint16_t *)current_pos = htons(step);
   current_pos += 2;
 
   uint16_t s_number = STUDENT_NUMBER;
-  *current_pos = htons(s_number);
+  *(uint16_t *)current_pos = htons(s_number);
 
   return header;
 }
