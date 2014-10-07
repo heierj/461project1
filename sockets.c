@@ -13,8 +13,8 @@
 
 int main(int argc, char **argv) {
   struct sockaddr_storage ret_addr;
-  int sock_fd;
-  int res;
+  int sock_fd, res, buf_length;
+  char *buf;
 
   printf("Connecting to amlia.cs.washington.edu\n");
 
@@ -40,14 +40,16 @@ int main(int argc, char **argv) {
   strncpy((packet + sizeof(packet_header)), "hello world", a1_payload_size);
 
   printf("Sending packet\n");
-  res = write_to_socket(sock_fd, packet, sizeof(packet_header) + a1_payload_size);
-
-  if(res) {
+  
+  if (write_to_socket(sock_fd, packet, sizeof(packet_header) + a1_payload_size)) { 
     printf("Error writing to socket\n");
   }  
 
+  res = read_from_socket(sock_fd, &buf, &buf_length);
+
   // Free a1 packet 
   free(packet);
+  free(buf);
 
 
 }

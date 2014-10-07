@@ -26,7 +26,7 @@ int write_to_socket(const int socket_fd,
  * was filled (meaning all the data might not have been read in). The buffer 'data' will be set to the 
  * data received and 'buf_size' will be set to the number of bytes read into the buffer.
  */
-int read_from_client(const int client_fd, 
+int read_from_socket(const int client_fd, 
                      char** data,
                      int* buf_size);
 

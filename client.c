@@ -81,7 +81,7 @@ int write_to_socket(const int socket_fd, char *buf, int buf_size) {
   return 0;
 }
 
-int read_from_client(const int client_fd, char** data, int* buf_size) {
+int read_from_socket(const int client_fd, char** data, int* buf_size) {
   // Prepare a buffer to be used to read bytes from the client.
   char *buf = (char*) malloc(MAX_READ_SIZE * sizeof(char));
   int bytes_read = 0;
@@ -89,7 +89,7 @@ int read_from_client(const int client_fd, char** data, int* buf_size) {
 
   // While we are not at the end of file continue reading into the buffer.
   while ( result != 0 ) {
-    result = read(client_fd, buf + bytes_read, MAX_READ_SIZE - bytes_read);
+    result = recv(client_fd, buf + bytes_read, MAX_READ_SIZE - bytes_read, 0);
     if (result == -1) {
       if (errno != EINTR) {
         // Some error occured trying to read the file so return false.
