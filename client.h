@@ -4,8 +4,8 @@
 #define CLIENT_H
 
 /*
-  Connects to a 'hostname' on the specified 'port'. Returns 0 if fails or
-  a 1 if successful. Also sets a valid file descriptor in 'ret_sock_fd'
+  Connects to a 'hostname' on the specified 'port'. Returns -1 if fails or
+  a 0 if successful. Also sets a valid file descriptor in 'ret_sock_fd'
   upon success.
 */  
 int connect_to_hostname(char *hostname,
@@ -15,7 +15,7 @@ int connect_to_hostname(char *hostname,
 
 /*
   Writes 'buf_size' number of bytes in 'buf' to the specified socket. 
-  Returns 1 upon success and a 0 if an error is encountered.
+  Returns 0 upon success and a -1 if an error is encountered.
 */
 int write_to_socket(const int socket_fd, 
                     char *buf, 
