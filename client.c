@@ -77,6 +77,40 @@ int write_to_socket(const int socket_fd, char *buf, int buf_size) {
   return 1;
 }
 
+// Read bytes from the client file descriptor until EOF or a network
+// interruption occurs. Prints bytes to stdout. Returns true on
+// success and false otherwise.
+char* read_from_client(const int client_fd, int* buf_size) {
+  // Prepare a buffer to be used to read bytes from the client.
+  char buf[256];
+  int bytes_read = 0;
+  int result = 1;
+
+  // While we are not at the end of file continue reading into the buffer.
+  while ( (result != 0) ) {
+    result = read(client_fd, buf + bytes_read, 256 - bytes_read);
+    if (result == -1) {
+      if (errno != EINTR) {
+        // Some error occured trying to read the file so return false.
+        return -1;
+      }
+      // EINTR happened, just try again
+      continue;
+    }
+    bytes_read += result;
+
+    // If buf is full or we have read the entire file, flush the buffer
+    // by writing to stdout.
+    if (bytes_read == 256 || result == 0) {
+      fwrite(buf, 1, bytes_read, stdout);
+      bytes_read = 0;
+    }
+  }
+
+  // Success.
+  return 0;
+}
+
 static int lookup_hostname(char *hostname,
                     unsigned short port_num,
                     struct sockaddr_storage *ret_addr,
