@@ -11,6 +11,10 @@
 #include <fcntl.h>  
 #include <unistd.h>
 
+#include "client.h"
+
+#define MAX_READ_SIZE 256
+
 // Used to look up a hostname and port number and return via 
 // parameter a struct sockaddr_storage and the address length.
 static int lookup_hostname(char *hostname,
@@ -77,18 +81,15 @@ int write_to_socket(const int socket_fd, char *buf, int buf_size) {
   return 0;
 }
 
-// Read bytes from the client file descriptor until EOF or a network
-// interruption occurs. Prints bytes to stdout. Returns true on
-// success and false otherwise.
-char* read_from_client(const int client_fd, int* buf_size) {
+int read_from_client(const int client_fd, char** data, int* buf_size) {
   // Prepare a buffer to be used to read bytes from the client.
-  char buf[256];
+  char *buf = (char*) malloc(MAX_READ_SIZE * sizeof(char));
   int bytes_read = 0;
   int result = 1;
 
   // While we are not at the end of file continue reading into the buffer.
-  while ( (result != 0) ) {
-    result = read(client_fd, buf + bytes_read, 256 - bytes_read);
+  while ( result != 0 ) {
+    result = read(client_fd, buf + bytes_read, MAX_READ_SIZE - bytes_read);
     if (result == -1) {
       if (errno != EINTR) {
         // Some error occured trying to read the file so return false.
@@ -99,14 +100,17 @@ char* read_from_client(const int client_fd, int* buf_size) {
     }
     bytes_read += result;
 
-    // If buf is full or we have read the entire file, flush the buffer
-    // by writing to stdout.
-    if (bytes_read == 256 || result == 0) {
-      fwrite(buf, 1, bytes_read, stdout);
-      bytes_read = 0;
+    // If buf is full or we have read the entire file, just return what was read
+    if (bytes_read == MAX_READ_SIZE) {
+      *data = buf;
+      *buf_size = MAX_READ_SIZE;
+      return 1;
     }
   }
 
+  *data = buf;
+  *buf_size = bytes_read;
+  
   // Success.
   return 0;
 }
