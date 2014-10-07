@@ -29,14 +29,14 @@ static int lookup_hostname(char *hostname,
   if (!lookup_hostname(hostname, port, &addr, &addr_len))
     // Failed to find an IP address associated with hostname, 
     // return false.
-    return 0;
+    return -1;
 
   //////
   // Create the socket.
   int socket_fd = socket(addr.ss_family, socket_type, 0);
   if (socket_fd == -1) {
     perror("Failed to create socket");
-    return 0;
+    return -1;
   }
 
   // connect the socket to the remote host.
@@ -45,11 +45,11 @@ static int lookup_hostname(char *hostname,
                    addr_len);
   if (res == -1) {
     perror("connect() failed");
-    return 0;
+    return -1;
   }
 
   *ret_sock_fd = socket_fd;
-  return 1;
+  return 0;
 }
 
 
@@ -61,20 +61,20 @@ int write_to_socket(const int socket_fd, char *buf, int buf_size) {
     int wres = write(socket_fd, buf + bytes_written, buf_size - bytes_written);
     if (wres == 0) {
       fprintf(stderr, "socket closed prematurely");
-      return 0;
+      return -1;
     }
     if (wres == -1) {
       if (errno == EINTR) 
         continue;
       // We have a legitimate error so we return false.
       perror("socket write failure");
-      return 0;
+      return -1;
     }
     bytes_written += wres;
   }
  
   // Successfully wrote the entire buffer over the network.
-  return 1;
+  return 0;
 }
 
 static int lookup_hostname(char *hostname,
@@ -92,7 +92,7 @@ static int lookup_hostname(char *hostname,
   res = getaddrinfo(hostname, NULL, &hints, &results);
   if (res != 0) {
     perror("getaddrinfo failed");
-    return 0;
+    return -1;
   }
 
   // Set the port in the first result.
@@ -105,7 +105,7 @@ static int lookup_hostname(char *hostname,
   } else {
     perror("getaddrinfo failed to provide an IPv4 or IPv6 address\n");
     freeaddrinfo(results);
-    return 0;
+    return -1;
   }
 
   // Return the first result.
@@ -114,6 +114,6 @@ static int lookup_hostname(char *hostname,
 
   // Clean up.
   freeaddrinfo(results);
-  return 1;
+  return 0;
 }
 
