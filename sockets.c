@@ -91,15 +91,20 @@ int stage_b(char *prev_packet, int prev_len, char **next_packet, int *next_len) 
   // Zero out the portion of the payload following the packet id
   memset(packet + sizeof(packet_header) + 4, 0, 
         (payload_len - sizeof(packet_header) - 4) / 4);
-
-  for(uint32_t i = 0; i < num; i++) {
+  
+  uint32_t i;
+  for (i = 0; i < num; i++) {
     uint32_t packet_id = htonl(i);
-    *((uint32_t *)(packet + sizeof(header))) = packet_id;
+    *((uint32_t *)(packet + sizeof(packet_header))) = packet_id;
 
     if (write_to_socket(sock_fd, packet, sizeof(packet_header) + payload_len)!=0) { 
       perror("Error writing to socket");
       return -1;
     }
+
+    // TODO: Read response from server, if the server doesn't respond then continue
+    // and decrement 'i' so that we try to send the packet again until it an ACK
+    // packet is received.
   }
 
   free(packet);
