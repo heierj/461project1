@@ -24,7 +24,7 @@ int write_to_socket(const int socket_fd,
 /*
  * Reads from the client. returns -1 on error, 0 if successful.
  * Data received and 'buf_size' will be set to the number of bytes read into the buffer.
- * Will wait a timeout period before giving up trying to read data.
+ * Will return 1 if no data is received within the preset timeout period.
  */
 int read_from_socket(const int client_fd, 
                      char** data,

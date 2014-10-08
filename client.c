@@ -104,7 +104,8 @@ int read_from_socket(const int client_fd, char** data, int* buf_size) {
           timeout -= 25000;
           continue;
         } else {
-          return -1;
+           // Timed out
+          return 1;
         }
       } else {
         // A real error occured so fail
