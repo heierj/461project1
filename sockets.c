@@ -9,53 +9,75 @@
 #include "client.h"
 
 #define STUDENT_NUMBER 980
+#define HOSTNAME "amlia.cs.washington.edu"
+#define P_TIMEOUT 500000
 
 
 int main(int argc, char **argv) {
-  struct sockaddr_storage ret_addr;
+  char *next_packet;
+  char *prev_packet;
+  int next_len, prev_len;  
+
+  stage_a(&prev_packet, &prev_len);
+  stage_b(prev_packet, prev_len, &next_packet, &next_len);
+}
+
+
+int stage_a(char **next_packet, int *packet_len) {
   int sock_fd, res, buf_length;
   char *buf;
 
-  printf("Connecting to amlia.cs.washington.edu\n");
+  char payload[] = "hello world";
 
-  res = connect_to_hostname("amlia.cs.washington.edu", 12235, SOCK_DGRAM, &sock_fd);
-  if(res) {
-    printf("Couldn't connect to host\n");
+  if (connect_to_hostname(HOSTNAME, 12235, SOCK_DGRAM, &sock_fd) != 0) {
+    perror("Couldn't connect to host\n");
+    return -1;
   }
-
-  printf("Socket opened with fd %d\n", sock_fd);
-
-  //printf("Success = %d, ret_sock = %d\n", ret, sock_fd);
-
-  // Create the packet for part a1
-  printf("Creating packet a1\n");
  
-  int a1_payload_size = 12;
-  char *packet = create_header(a1_payload_size, 0, 1);
+  char *packet = create_header(sizeof(payload), 0, 1);
   if(packet == NULL) {
     printf("Error creating packet\n");
+    return -1;
   }
 
   // Set payload of packet
-  strncpy((packet + sizeof(packet_header)), "hello world", a1_payload_size);
-
-  printf("Sending packet\n");
+  memcpy((packet + sizeof(packet_header)), payload, sizeof(payload));
   
-  if (write_to_socket(sock_fd, packet, sizeof(packet_header) + a1_payload_size)) { 
-    printf("Error writing to socket\n");
+  if (write_to_socket(sock_fd, packet, sizeof(packet_header) + sizeof(payload))!=0) { 
+    perror("Error writing to socket");
+    return -1;
   }  
 
-  res = read_from_socket(sock_fd, &buf, &buf_length);
-
-  // Free a1 packet 
+  if (read_from_socket(sock_fd, &buf, &buf_length) != 0) {
+    perror("Error reading from socket");
+    return -1;
+  }
+  
+  // Free a1 packet
   free(packet);
-  free(buf);
+  
+  char *result = (char *) malloc(buf_length); 
+  memcpy(result, buf, buf_length);
+
+  *next_packet = result;
+  *packet_len = buf_length;
+
+  return 0;
+}
+
+int stage_b(char *prev_packet, int prev_len, char **next_packet, int *next_len) {
+  uint32_t num, len, udp_port, secretA;
+
+  num = ntohl(*((int *) (prev_packet + sizeof(packet_header)))); 
+  len = ntohl(*((int *) (prev_packet + sizeof(packet_header) + sizeof(int)))); 
+  udp_port = ntohl(*((int *) (prev_packet + sizeof(packet_header) + 2 * sizeof(int)))); 
+  secretA = ntohl(*((int *) (prev_packet + sizeof(packet_header) + 3 * sizeof(int)))); 
 
 
 }
 
 
-// Allocates space for the packet including the header. Fills in the header
+// Allocates space for the packet including the payload. Fills in the header
 // and returns a pointer to the start of the packet.
 char *create_header(uint32_t payload_len, uint32_t psecret, uint16_t step) {
   

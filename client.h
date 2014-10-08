@@ -6,7 +6,7 @@
 /*
  * Connects to a 'hostname' on the specified 'port'. Returns -1 if fails or
  * a 0 if successful. Also sets a valid file descriptor in 'ret_sock_fd'
- * upon success.
+ * upon success..
  */  
 int connect_to_hostname(char *hostname,
                         unsigned short port,
@@ -22,9 +22,9 @@ int write_to_socket(const int socket_fd,
                     int buf_size);
 
 /*
- * Reads from the client. returns -1 on error, 0 if successful, and 1 if successful but the buffer limit
- * was filled (meaning all the data might not have been read in). The buffer 'data' will be set to the 
- * data received and 'buf_size' will be set to the number of bytes read into the buffer.
+ * Reads from the client. returns -1 on error, 0 if successful.
+ * Data received and 'buf_size' will be set to the number of bytes read into the buffer.
+ * Will wait a timeout period before giving up trying to read data.
  */
 int read_from_socket(const int client_fd, 
                      char** data,

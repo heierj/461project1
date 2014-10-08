@@ -35,7 +35,6 @@ static int lookup_hostname(char *hostname,
     // return false.
     return -1;
 
-  //////
   // Create the socket.
   int socket_fd = socket(addr.ss_family, socket_type, 0);
   if (socket_fd == -1) {
@@ -81,31 +80,38 @@ int write_to_socket(const int socket_fd, char *buf, int buf_size) {
   return 0;
 }
 
+
 int read_from_socket(const int client_fd, char** data, int* buf_size) {
   // Prepare a buffer to be used to read bytes from the client.
   char *buf = (char*) malloc(MAX_READ_SIZE * sizeof(char));
   int bytes_read = 0;
   int result = 1;
+  int timeout = 500000; // in microseconds
 
-  // While we are not at the end of file continue reading into the buffer.
-  while ( result != 0 ) {
-    result = recv(client_fd, buf + bytes_read, MAX_READ_SIZE - bytes_read, 0);
+  // While we still havent read any bytes and the connection remains open.
+  while ( result != 0 && bytes_read == 0) {
+    result = recv(client_fd, buf, MAX_READ_SIZE, MSG_DONTWAIT);
+
     if (result == -1) {
-      if (errno != EINTR) {
-        // Some error occured trying to read the file so return false.
+      if (errno == EINTR) {
+        // EINTR happened, just try again
+        continue;
+      } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        // Wait for 25ms intervals and keep checking while we still havent
+        // timed out
+        if (timeout > 0) {
+          usleep(25000);
+          timeout -= 25000;
+          continue;
+        } else {
+          return -1;
+        }
+      } else {
+        // A real error occured so fail
         return -1;
       }
-      // EINTR happened, just try again
-      continue;
     }
     bytes_read += result;
-
-    // If buf is full or we have read the entire file, just return what was read
-    if (bytes_read == MAX_READ_SIZE) {
-      *data = buf;
-      *buf_size = MAX_READ_SIZE;
-      return 1;
-    }
   }
 
   *data = buf;
