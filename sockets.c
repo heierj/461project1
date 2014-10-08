@@ -20,6 +20,8 @@ int main(int argc, char **argv) {
 
   stage_a(&prev_packet, &prev_len);
   stage_b(prev_packet, prev_len, &next_packet, &next_len);
+  // stage_c();
+  // stage_d();
 }
 
 
@@ -66,14 +68,41 @@ int stage_a(char **next_packet, int *packet_len) {
 }
 
 int stage_b(char *prev_packet, int prev_len, char **next_packet, int *next_len) {
-  uint32_t num, len, udp_port, secretA;
+  uint32_t num, len, udp_port, secretA, sock_fd;
 
+  // Extract all the values from the response packet from stage a
   num = ntohl(*((int *) (prev_packet + sizeof(packet_header)))); 
   len = ntohl(*((int *) (prev_packet + sizeof(packet_header) + sizeof(int)))); 
   udp_port = ntohl(*((int *) (prev_packet + sizeof(packet_header) + 2 * sizeof(int)))); 
-  secretA = ntohl(*((int *) (prev_packet + sizeof(packet_header) + 3 * sizeof(int)))); 
+  secretA = ntohl(*((int *) (prev_packet + sizeof(packet_header) + 3 * sizeof(int))));
 
+  free(prev_packet);
+  
+  // Connect to the host again on the provided port
+  if (connect_to_hostname(HOSTNAME, udp_port, SOCK_DGRAM, &sock_fd) != 0) {
+    printf("Couldn't connect to host\n");
+    return -1;
+  }
 
+  // Add 4 to len for the packet id and then byte align to 4 bytes
+  uint32_t payload_len = (((len + 4) + 3) / 4) * 4;
+  char *packet = create_header(payload_len, secretA, 1);
+  
+  // Zero out the portion of the payload following the packet id
+  memset(packet + sizeof(packet_header) + 4, 0, 
+        (payload_len - sizeof(packet_header) - 4) / 4);
+
+  for(uint32_t i = 0; i < num; i++) {
+    uint32_t packet_id = htonl(i);
+    *((uint32_t *)(packet + sizeof(header))) = packet_id;
+
+    if (write_to_socket(sock_fd, packet, sizeof(packet_header) + payload_len)!=0) { 
+      perror("Error writing to socket");
+      return -1;
+    }
+  }
+
+  free(packet);
 }
 
 
