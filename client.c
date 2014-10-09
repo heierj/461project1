@@ -30,10 +30,11 @@ static int lookup_hostname(char *hostname,
   struct sockaddr_storage addr;
   size_t addr_len;
 
-  if (lookup_hostname(hostname, port, &addr, &addr_len))
+  if (lookup_hostname(hostname, port, &addr, &addr_len)) {
     // Failed to find an IP address associated with hostname, 
     // return false.
     return -1;
+  }
 
   // Create the socket.
   int socket_fd = socket(addr.ss_family, socket_type, 0);

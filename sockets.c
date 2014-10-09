@@ -70,11 +70,18 @@ int stage_a(char **next_packet, int *packet_len) {
 int stage_b(char *prev_packet, int prev_len, char **next_packet, int *next_len) {
   uint32_t num, len, udp_port, secretA, sock_fd;
 
+
+  
   // Extract all the values from the response packet from stage a
   num = ntohl(*((int *) (prev_packet + sizeof(packet_header)))); 
   len = ntohl(*((int *) (prev_packet + sizeof(packet_header) + sizeof(int)))); 
   udp_port = ntohl(*((int *) (prev_packet + sizeof(packet_header) + 2 * sizeof(int)))); 
   secretA = ntohl(*((int *) (prev_packet + sizeof(packet_header) + 3 * sizeof(int))));
+
+  printf("Num: %d\n", num);
+  printf("Len: %d\n", len);
+  printf("Port #: %d\n", udp_port);
+  printf("Secret: %d\n", secretA);
 
   free(prev_packet);
   
@@ -86,17 +93,19 @@ int stage_b(char *prev_packet, int prev_len, char **next_packet, int *next_len) 
 
   // Add 4 to len for the packet id and then byte align to 4 bytes
   uint32_t payload_len = (((len + 4) + 3) / 4) * 4;
-  char *packet = create_header(payload_len, secretA, 1);
+  printf("Payload_len: %d\n", payload_len);
+
+  char *packet = create_header(len+4, secretA, 1);
   
   // Zero out the portion of the payload following the packet id
-  memset(packet + sizeof(packet_header) + 4, 0, 
-        (payload_len - sizeof(packet_header) - 4) / 4);
+  memset(packet + sizeof(packet_header) + 4, 0, (payload_len - 4));
   
   uint32_t i;
   for (i = 0; i < num; i++) {
     uint32_t packet_id = htonl(i);
     *((uint32_t *)(packet + sizeof(packet_header))) = packet_id;
 
+    printf("Sending packet %d\n", i);
     if (write_to_socket(sock_fd, packet, sizeof(packet_header) + payload_len)!=0) { 
       perror("Error writing to socket");
       return -1;
@@ -105,7 +114,29 @@ int stage_b(char *prev_packet, int prev_len, char **next_packet, int *next_len) 
     // TODO: Read response from server, if the server doesn't respond then continue
     // and decrement 'i' so that we try to send the packet again until it an ACK
     // packet is received.
+    char *buf;
+    int buf_length;
+    if (read_from_socket(sock_fd, &buf, &buf_length) != 0) {
+      printf("Error reading from socket. Resending packet\n");
+      i--;
+      continue;
+    }
+
+    printf("Received confirmation of packet %d\n", ntohl(*(uint32_t *)(buf+12)));
   }
+  char *buf;
+  int buf_length;
+  printf("Done, trying to read last packet\n");
+  if (read_from_socket(sock_fd, &buf, &buf_length) != 0) {
+      printf("Error reading from socket.\n");
+  }
+
+  printf("read packet of length %d\n", buf_length);
+  
+  int tcp_port = ntohl(*((int *) (prev_packet + sizeof(packet_header)))); 
+  int secretB = ntohl(*((int *) (prev_packet + sizeof(packet_header) + sizeof(int))));
+  printf("secretb: %d\n", secretB);
+  printf("tcp_port: %d\n", tcp_port);
 
   free(packet);
 }
