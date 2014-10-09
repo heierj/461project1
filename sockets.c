@@ -12,89 +12,95 @@
 #define HOSTNAME "amlia.cs.washington.edu"
 #define P_TIMEOUT 500000
 
+char *stage_a();
+char *stage_b(char *server_response);
 
 int main(int argc, char **argv) {
-  char *next_packet;
-  char *prev_packet;
-  int next_len, prev_len;  
+  char *server_response;
 
-  stage_a(&prev_packet, &prev_len);
-  stage_b(prev_packet, prev_len, &next_packet, &next_len);
+  server_response = stage_a();
+  if(server_response == NULL) {
+    printf("Error in stage A");
+  }
+
+  server_response = stage_b(server_response);
+  if(server_response == NULL) {
+    printf("Error in stage B");
+  }
   // stage_c();
   // stage_d();
 }
 
-
-int stage_a(char **next_packet, int *packet_len) {
+// This function handles the sending and receiving of
+// packets for stage a. The server response is
+// returned or NULL on error.
+char *stage_a() {
   int sock_fd, res, buf_length;
   char *buf;
 
   char payload[] = "hello world";
 
+  // Connect to server via UDP
   if (connect_to_hostname(HOSTNAME, 12235, SOCK_DGRAM, &sock_fd) != 0) {
     perror("Couldn't connect to host\n");
-    return -1;
+    return NULL;
   }
  
   char *packet = create_header(sizeof(payload), 0, 1);
   if(packet == NULL) {
-    printf("Error creating packet\n");
-    return -1;
+    printf("Error creating packet for stage A\n");
+    return NULL;
   }
 
   // Set payload of packet
   memcpy((packet + sizeof(packet_header)), payload, sizeof(payload));
   
-  if (write_to_socket(sock_fd, packet, sizeof(packet_header) + sizeof(payload))!=0) { 
+  if (write_to_socket(sock_fd, packet,
+      sizeof(packet_header) + sizeof(payload))!=0) { 
     perror("Error writing to socket");
-    return -1;
+    return NULL;
   }  
 
   if (read_from_socket(sock_fd, &buf, &buf_length) != 0) {
     perror("Error reading from socket");
-    return -1;
+    return NULL;
   }
   
   // Free a1 packet
   free(packet);
-  
-  char *result = (char *) malloc(buf_length); 
-  memcpy(result, buf, buf_length);
 
-  *next_packet = result;
-  *packet_len = buf_length;
-
-  return 0;
+  return buf;
 }
 
-int stage_b(char *prev_packet, int prev_len, char **next_packet, int *next_len) {
+// This function handles the sending and receiving of packets for
+// stage b. Returns the server response for stage b or NULL on error.
+char *stage_b(char *prev_packet) {
   uint32_t num, len, udp_port, secretA, sock_fd;
-
-
-  
+ 
   // Extract all the values from the response packet from stage a
-  num = ntohl(*((int *) (prev_packet + sizeof(packet_header)))); 
-  len = ntohl(*((int *) (prev_packet + sizeof(packet_header) + sizeof(int)))); 
-  udp_port = ntohl(*((int *) (prev_packet + sizeof(packet_header) + 2 * sizeof(int)))); 
-  secretA = ntohl(*((int *) (prev_packet + sizeof(packet_header) + 3 * sizeof(int))));
+  num = 
+    ntohl(*(int *) (prev_packet + sizeof(packet_header))); 
+  len = 
+    ntohl(*(int *) (prev_packet + sizeof(packet_header) + sizeof(int))); 
+  udp_port = 
+    ntohl(*(int *) (prev_packet + sizeof(packet_header) + 2 * sizeof(int))); 
+  secretA =
+    ntohl(*(int *) (prev_packet + sizeof(packet_header) + 3 * sizeof(int)));
 
-  printf("Num: %d\n", num);
-  printf("Len: %d\n", len);
-  printf("Port #: %d\n", udp_port);
-  printf("Secret: %d\n", secretA);
-
+  // Free server response for A, its no longer needed
   free(prev_packet);
   
-  // Connect to the host again on the provided port
+  // Connect to the host again on the provided port via UDP
   if (connect_to_hostname(HOSTNAME, udp_port, SOCK_DGRAM, &sock_fd) != 0) {
     printf("Couldn't connect to host\n");
-    return -1;
+    return NULL;
   }
 
   // Add 4 to len for the packet id and then byte align to 4 bytes
   uint32_t payload_len = (((len + 4) + 3) / 4) * 4;
-  printf("Payload_len: %d\n", payload_len);
 
+
+  // Create the packet and set the header
   char *packet = create_header(len+4, secretA, 1);
   
   // Zero out the portion of the payload following the packet id
@@ -102,43 +108,39 @@ int stage_b(char *prev_packet, int prev_len, char **next_packet, int *next_len) 
   
   uint32_t i;
   for (i = 0; i < num; i++) {
+
+    // Set packet number
     uint32_t packet_id = htonl(i);
     *((uint32_t *)(packet + sizeof(packet_header))) = packet_id;
 
-    printf("Sending packet %d\n", i);
-    if (write_to_socket(sock_fd, packet, sizeof(packet_header) + payload_len)!=0) { 
+    if (write_to_socket(sock_fd, packet, 
+        sizeof(packet_header) + payload_len)!=0) { 
       perror("Error writing to socket");
-      return -1;
+      return NULL;
     }
 
-    // TODO: Read response from server, if the server doesn't respond then continue
-    // and decrement 'i' so that we try to send the packet again until it an ACK
-    // packet is received.
+    // Check that server received the packet
+    // If we don't get an acknowledgement the resend the packet
     char *buf;
     int buf_length;
     if (read_from_socket(sock_fd, &buf, &buf_length) != 0) {
-      printf("Error reading from socket. Resending packet\n");
+      printf("Error reading from socket. Resending packet %d\n", i);
       i--;
       continue;
     }
-
-    printf("Received confirmation of packet %d\n", ntohl(*(uint32_t *)(buf+12)));
   }
+
+  // Free packet sent for stage B
+  free(packet);
+
+  // All packets sent, get the server's response
   char *buf;
   int buf_length;
-  printf("Done, trying to read last packet\n");
+  printf("Done with stage B, reading server response\n");
   if (read_from_socket(sock_fd, &buf, &buf_length) != 0) {
       printf("Error reading from socket.\n");
   }
-
-  printf("read packet of length %d\n", buf_length);
-  
-  int tcp_port = ntohl(*((int *) (prev_packet + sizeof(packet_header)))); 
-  int secretB = ntohl(*((int *) (prev_packet + sizeof(packet_header) + sizeof(int))));
-  printf("secretb: %d\n", secretB);
-  printf("tcp_port: %d\n", tcp_port);
-
-  free(packet);
+  return buf;
 }
 
 
