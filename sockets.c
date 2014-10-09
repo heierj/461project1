@@ -14,10 +14,12 @@
 
 char *stage_a();
 char *stage_b(char *server_response);
-char *stage_c(char *server_response);
+char *stage_c(char *server_response, uint32_t *sock_fd);
+char *stage_d(char *server_response, uint32_t *sock_fd);
 
 int main(int argc, char **argv) {
   char *server_response;
+  uint32_t sock_fd;
 
   server_response = stage_a();
   if(server_response == NULL) {
@@ -27,11 +29,14 @@ int main(int argc, char **argv) {
   if(server_response == NULL) {
     printf("Error in stage B");
   }
-  server_response = stage_c(server_response);
+  server_response = stage_c(server_response, &sock_fd);
   if(server_response == NULL) {
     printf("Error in stage C");
   }
-  // stage_d();
+  server_response = stage_d(server_response, &sock_fd);
+  if(server_response == NULL) {
+    printf("Error in stage D");
+  }
 }
 
 // This function handles the sending and receiving of
@@ -48,7 +53,8 @@ char *stage_a() {
     perror("Couldn't connect to host\n");
     return NULL;
   }
- 
+  
+  //Create packet header 
   char *packet = create_header(sizeof(payload), 0, 1);
   if(packet == NULL) {
     printf("Error creating packet for stage A\n");
@@ -69,9 +75,7 @@ char *stage_a() {
     return NULL;
   }
   
-  // Free a1 packet
   free(packet);
-
   return buf;
 }
 
@@ -91,6 +95,8 @@ char *stage_b(char *prev_packet) {
   secretA =
     ntohl(*(int *) (prev_packet + sizeof(packet_header) + 3 * sizeof(int)));
 
+  printf("Secret A: %d\n", secretA);
+
   // Free server response for A, its no longer needed
   free(prev_packet);
   
@@ -103,13 +109,13 @@ char *stage_b(char *prev_packet) {
   // Add 4 to len for the packet id and then byte align to 4 bytes
   uint32_t payload_len = (((len + 4) + 3) / 4) * 4;
 
-
   // Create the packet and set the header
   char *packet = create_header(len+4, secretA, 1);
   
   // Zero out the portion of the payload following the packet id
   memset(packet + sizeof(packet_header) + 4, 0, (payload_len - 4));
-  
+
+  //Begin write/read loop
   uint32_t i;
   for (i = 0; i < num; i++) {
 
@@ -133,14 +139,11 @@ char *stage_b(char *prev_packet) {
       continue;
     }
   }
-
-  // Free packet sent for stage B
   free(packet);
 
   // All packets sent, get the server's response
   char *buf;
   int buf_length;
-  printf("Done with stage B, reading server response\n");
   if (read_from_socket(sock_fd, &buf, &buf_length) != 0) {
       printf("Error reading from socket.\n");
   }
@@ -149,35 +152,41 @@ char *stage_b(char *prev_packet) {
 
 // This function handles the sending and receiving of packets for
 // stage c. Returns the server response for stage c or NULL on error.
-char *stage_c(char *prev_packet) {
-  uint32_t tcp_port, secretB, sock_fd;
+char *stage_c(char *prev_packet, uint32_t *sock_fd) {
+  uint32_t tcp_port, secretB;
  
   // Extract all the values from the response packet from stage a
   tcp_port = 
     ntohl(*(int *) (prev_packet + sizeof(packet_header))); 
   secretB = 
     ntohl(*(int *) (prev_packet + sizeof(packet_header) + sizeof(int))); 
-  printf("%d, %d\n",tcp_port, secretB);
+
+  printf("Secret B: %d\n", secretB);
 
   // Free server response for B, its no longer needed
   free(prev_packet);
   
   // Connect to the host again on the provided port via TCP 
-  if (connect_to_hostname(HOSTNAME, tcp_port, SOCK_STREAM, &sock_fd) != 0) {
+  if (connect_to_hostname(HOSTNAME, tcp_port, SOCK_STREAM, sock_fd) != 0) {
     printf("Couldn't connect to host\n");
     return NULL;
   }
-  printf("Connected on part C\n");
-  // Check that server received the packet
-  // If we don't get an acknowledgement the resend the packet
+  
+  //Read server response (No need to loop on TCP)
   char *buf;
   int buf_length;
-  if (read_from_socket(sock_fd, &buf, &buf_length) != 0) {
+  if (read_from_socket(*sock_fd, &buf, &buf_length) != 0) {
     printf("Error reading from socket");
   }
-  printf("read on part C\n");
-  uint32_t num2, len2, secretC;
-  char c;
+  return buf;
+}
+
+// This function handles the sending and receiving of packets for
+// stage d. Returns the server response for stage d or NULL on error.
+char *stage_d(char *prev_packet, uint32_t *sock_fd) {
+  uint32_t num2, len2, secretC; char c;
+
+  // Extract all the values from the response packet from stage c
   num2 = 
     ntohl(*(int *) (prev_packet + sizeof(packet_header))); 
   len2 = 
@@ -186,7 +195,42 @@ char *stage_c(char *prev_packet) {
     ntohl(*(int *) (prev_packet + sizeof(packet_header) + 2 * sizeof(int))); 
   c = 
     *(char *) (prev_packet + sizeof(packet_header) + 3 * sizeof(int)); 
-  printf("%d, %d, %d, %d, \n", num2, len2, secretC, c);
+
+  printf("Secret C: %d\n", secretC);
+
+  // Free server response for C, its no longer needed
+  free(prev_packet);
+
+  // byte align to 4 bytes
+  uint32_t payload_len = len2 + 4 - len2 % 4;
+
+  // Create the packet and set the header
+  char *packet = create_header(len2, secretC, 1);
+  
+  // Set payload and zero out padding 
+  memset(packet + sizeof(packet_header), (uint32_t) c, payload_len);
+  memset(packet + sizeof(packet_header), 0, payload_len - len2);
+  
+  //write to server for d1
+  uint32_t i;
+  for (i = 0; i < num2; i++) {
+    if (write_to_socket(*sock_fd, packet, 
+        sizeof(packet_header) + payload_len)!=0) { 
+      perror("Error writing to socket");
+      return NULL;
+    }
+  }
+  free(packet);
+
+  //Read from socket
+  char *buf;
+  int buf_length;
+  if (read_from_socket(*sock_fd, &buf, &buf_length) != 0) {
+    printf("Error reading from socket");
+  }
+  uint32_t secretD = 
+    ntohl(*(int *) (buf + sizeof(packet_header))); 
+  printf("Secret D: %d\n", secretD);
   return buf;
 }
 
