@@ -14,6 +14,7 @@
 
 char *stage_a();
 char *stage_b(char *server_response);
+char *stage_c(char *server_response);
 
 int main(int argc, char **argv) {
   char *server_response;
@@ -22,12 +23,14 @@ int main(int argc, char **argv) {
   if(server_response == NULL) {
     printf("Error in stage A");
   }
-
   server_response = stage_b(server_response);
   if(server_response == NULL) {
     printf("Error in stage B");
   }
-  // stage_c();
+  server_response = stage_c(server_response);
+  if(server_response == NULL) {
+    printf("Error in stage C");
+  }
   // stage_d();
 }
 
@@ -71,6 +74,7 @@ char *stage_a() {
 
   return buf;
 }
+
 
 // This function handles the sending and receiving of packets for
 // stage b. Returns the server response for stage b or NULL on error.
@@ -143,6 +147,48 @@ char *stage_b(char *prev_packet) {
   return buf;
 }
 
+// This function handles the sending and receiving of packets for
+// stage c. Returns the server response for stage c or NULL on error.
+char *stage_c(char *prev_packet) {
+  uint32_t tcp_port, secretB, sock_fd;
+ 
+  // Extract all the values from the response packet from stage a
+  tcp_port = 
+    ntohl(*(int *) (prev_packet + sizeof(packet_header))); 
+  secretB = 
+    ntohl(*(int *) (prev_packet + sizeof(packet_header) + sizeof(int))); 
+  printf("%d, %d\n",tcp_port, secretB);
+
+  // Free server response for B, its no longer needed
+  free(prev_packet);
+  
+  // Connect to the host again on the provided port via TCP 
+  if (connect_to_hostname(HOSTNAME, tcp_port, SOCK_STREAM, &sock_fd) != 0) {
+    printf("Couldn't connect to host\n");
+    return NULL;
+  }
+  printf("Connected on part C\n");
+  // Check that server received the packet
+  // If we don't get an acknowledgement the resend the packet
+  char *buf;
+  int buf_length;
+  if (read_from_socket(sock_fd, &buf, &buf_length) != 0) {
+    printf("Error reading from socket");
+  }
+  printf("read on part C\n");
+  uint32_t num2, len2, secretC;
+  char c;
+  num2 = 
+    ntohl(*(int *) (prev_packet + sizeof(packet_header))); 
+  len2 = 
+    ntohl(*(int *) (prev_packet + sizeof(packet_header) + sizeof(int))); 
+  secretC = 
+    ntohl(*(int *) (prev_packet + sizeof(packet_header) + 2 * sizeof(int))); 
+  c = 
+    *(char *) (prev_packet + sizeof(packet_header) + 3 * sizeof(int)); 
+  printf("%d, %d, %d, %d, \n", num2, len2, secretC, c);
+  return buf;
+}
 
 // Allocates space for the packet including the payload. Fills in the header
 // and returns a pointer to the start of the packet.
