@@ -23,22 +23,22 @@ int main(int argc, char **argv) {
 
   server_response = stage_a();
   if(server_response == NULL) {
-    printf("Error in stage A");
+    printf("Error in stage A\n");
     return 1;
   }
   server_response = stage_b(server_response);
   if(server_response == NULL) {
-    printf("Error in stage B");
+    printf("Error in stage B\n");
     return 1;
   }
   server_response = stage_c(server_response, &sock_fd);
   if(server_response == NULL) {
-    printf("Error in stage C");
+    printf("Error in stage C\n");
     return 1;
   }
   server_response = stage_d(server_response, &sock_fd);
   if(server_response == NULL) {
-    printf("Error in stage D");
+    printf("Error in stage D\n");
     return 1;
   }
 }
