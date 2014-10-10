@@ -41,13 +41,15 @@ int main(int argc, char **argv) {
     printf("Error in stage D\n");
     return 1;
   }
+
+  return 0;
 }
 
 // This function handles the sending and receiving of
 // packets for stage a. The server response is
 // returned or NULL on error.
 char *stage_a() {
-  int sock_fd, res, buf_length;
+  int sock_fd, buf_length;
   char *buf;
 
   char payload[] = "hello world";
@@ -87,7 +89,8 @@ char *stage_a() {
 // This function handles the sending and receiving of packets for
 // stage b. Returns the server response for stage b or NULL on error.
 char *stage_b(char *prev_packet) {
-  uint32_t num, len, udp_port, secretA, sock_fd;
+  uint32_t num, len, udp_port, secretA;
+  int sock_fd;
  
   // Extract all the values from the response packet from stage a
   num = 
@@ -171,7 +174,7 @@ char *stage_c(char *prev_packet, uint32_t *sock_fd) {
   free(prev_packet);
   
   // Connect to the host again on the provided port via TCP 
-  if (connect_to_hostname(HOSTNAME, tcp_port, SOCK_STREAM, sock_fd) != 0) {
+  if (connect_to_hostname(HOSTNAME, tcp_port, SOCK_STREAM, (int *) sock_fd) != 0) {
     printf("Couldn't connect to host\n");
     return NULL;
   }
