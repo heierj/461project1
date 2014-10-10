@@ -24,18 +24,22 @@ int main(int argc, char **argv) {
   server_response = stage_a();
   if(server_response == NULL) {
     printf("Error in stage A");
+    return 1;
   }
   server_response = stage_b(server_response);
   if(server_response == NULL) {
     printf("Error in stage B");
+    return 1;
   }
   server_response = stage_c(server_response, &sock_fd);
   if(server_response == NULL) {
     printf("Error in stage C");
+    return 1;
   }
   server_response = stage_d(server_response, &sock_fd);
   if(server_response == NULL) {
     printf("Error in stage D");
+    return 1;
   }
 }
 
@@ -134,7 +138,7 @@ char *stage_b(char *prev_packet) {
     char *buf;
     int buf_length;
     if (read_from_socket(sock_fd, &buf, &buf_length) != 0) {
-      printf("Error reading from socket. Resending packet %d\n", i);
+      printf("Resending packet %d for stage D, no ACK received\n", i);
       i--;
       continue;
     }
