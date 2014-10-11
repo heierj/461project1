@@ -7,119 +7,150 @@ import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 
-
 public class Sockets {
     private static final String HOSTNAME = "amlia.cs.washington.edu";
     private static final int PORT = 12235;
     private static final int HEADER_SIZE = 12;
+    private static final short STUDENT_NUM = 980;
 	
 	public static void main(String[] args) {
-		ByteBuffer responseA  = stageA();
-		ByteBuffer responseB = stageB(responseA);
-		ByteBuffer responseC = stageC(responseB);
-		stageD(responseC);
+		
+		InetAddress ipAddress = getIpForHost();
+		ByteBuffer responseA  = stageA(ipAddress);
+		ByteBuffer responseB = stageB(ipAddress, responseA);
+		ByteBuffer responseC = stageC(ipAddress, responseB);
+		stageD(ipAddress, responseC);
 	}
 	
-	private static void stageD(ByteBuffer responseC) {
+	private static InetAddress getIpForHost() {
+		try {
+	      return InetAddress.getByName(HOSTNAME);
+	    } catch ( UnknownHostException e ) {
+	      System.out.println("Could not find IP address for: " + HOSTNAME);
+	      return null;
+	    }
+	}
+
+	private static void stageD(InetAddress ipAddress, ByteBuffer responseC) {
 		// TODO Auto-generated method stub
 		
 	}
 
-	private static ByteBuffer stageC(ByteBuffer responseB) {
+	private static ByteBuffer stageC(InetAddress ipAddress, ByteBuffer responseB) {
 		// TODO Auto-generated method stub
 		return null;
 	}
 
-	private static ByteBuffer stageB(ByteBuffer responseA) {
+	private static ByteBuffer stageB(InetAddress ipAddress, ByteBuffer responseA) {
+		
+		// Parse packet received in stage A 
 		int payloadStart = HEADER_SIZE;
 		int num = responseA.getInt(payloadStart);
 		int len = responseA.getInt(payloadStart + 4) + 4;
 		int udpPort = responseA.getInt(payloadStart + 8);
 		int secretA = responseA.getInt(payloadStart + 12);
-		System.out.println("SecretA: " + secretA);
-		
-		System.out.println(num);
-		
-		InetAddress ipaddress;
-		try {
-		      ipaddress = InetAddress.getByName(HOSTNAME);
-		    } catch ( UnknownHostException e ) {
-		      System.out.println("Could not find IP address for: " + HOSTNAME);
-		      return null;
-		    }
-		DatagramSocket socket;
-		try {
-			socket = new DatagramSocket();
-		} catch (SocketException e1) {
-			System.out.println("Couldn't create socket");
-			return null;
-		}
-		
-		try {
-			socket.setSoTimeout(500);
-		} catch (SocketException e1) {
-			// TODO Auto-generated catch block
-			e1.printStackTrace();
-			System.out.println("Couldn't set timeout");
-		}
-
+				
+		// Set up the packet for sending
+		DatagramSocket socket = createUdpSocket(500);
 		ByteBuffer packetData = startPacket(len, secretA);
 		
+		// Send num packets and wait for ACK each time
 		for(int i = 0; i < num; i++) {
 			packetData.putInt(12, i);
 			byte[] bytes = packetData.array();
-			DatagramPacket packet = new DatagramPacket(bytes, bytes.length, ipaddress, udpPort);
+			DatagramPacket packet = new DatagramPacket(bytes, bytes.length, ipAddress, udpPort);
+			
+			// Send the packet
 			try {
 				socket.send(packet);
 			}  catch (IOException e) {
 				System.out.println("Couldn't send packet");
 				e.printStackTrace();
 			}
+			
+			// Receive the ACK
 			byte[] recPacket = new byte[16];
 			DatagramPacket receive = new DatagramPacket(recPacket, recPacket.length);
 			try {
 				socket.receive(receive);
 			} catch (SocketTimeoutException e) {
+				// There was a timeout... resend the packet
 				System.out.println("No ACK received for packet " + i + ", resending...");
 				i--;
 				continue;
 			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-				System.out.println("Didn't receive packet");
+				System.out.println("Error receiving ACK, quitting");
+				return null;
 			}
-			ByteBuffer serverResponse = ByteBuffer.wrap(receive.getData());
-			System.out.println("Server response received for packet " + serverResponse.getInt(12));
-			
+			ByteBuffer serverResponse = ByteBuffer.wrap(receive.getData());	
+			if(serverResponse.getInt(HEADER_SIZE) != i) {
+				System.out.println("Received incorrect ACK, quitting");
+				return null;
+			}
 			
 		}
 	
+		// Receive server response for stage b
 		byte[] recPacket = new byte[20];
 		DatagramPacket receive = new DatagramPacket(recPacket, recPacket.length);
 		try {
 			socket.receive(receive);
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			System.out.println("Didn't receive packet");
+			System.out.println("Didn't receive server response for stage B");
+			return null;
 		}
+		
 		ByteBuffer serverResponse = ByteBuffer.wrap(recPacket);
-		System.out.println("Tcp port " + serverResponse.getInt(12));
-		System.out.println("SecretB " + serverResponse.getInt(16));
-		socket.close();
-		
+		System.out.println("SecretB: " + serverResponse.getInt(16));
+		socket.close();	
 		return serverResponse;
-		
 	}
 
-	private static ByteBuffer stageA() {
-		InetAddress ipaddress;
+	/**
+	 * Peforms stageA of the project
+	 * @param ipAddress ipAddress to send packets to
+	 * @return server response for stageA
+	 */
+	private static ByteBuffer stageA(InetAddress ipAddress) {
+		// Open UDP socket
+		DatagramSocket socket = createUdpSocket(0);
+		
+		// Create packet to send
+		ByteBuffer packetData = startPacket(12, 0);
+		packetData.put("hello world".getBytes());
+		byte[] bytes = packetData.array();
+		DatagramPacket packet = new DatagramPacket(bytes, bytes.length, ipAddress, PORT);
+		
+		// Send the packet
 		try {
-		      ipaddress = InetAddress.getByName(HOSTNAME);
-		    } catch ( UnknownHostException e ) {
-		      System.out.println("Could not find IP address for: " + HOSTNAME);
-		      return null;
-		    }
+			socket.send(packet);
+		} catch (IOException e) {
+			System.out.println("Couldn't send packet");
+			e.printStackTrace();
+		}
+		
+		// Receive the response
+		byte[] recPacket = new byte[28];
+		DatagramPacket receive = new DatagramPacket(recPacket, recPacket.length);
+		try {
+			socket.receive(receive);
+		} catch (IOException e) {
+			System.out.println("Didn't receive server response for part A");
+			return null;
+		}
+		
+		// Close socket and return server response
+		ByteBuffer serverResponse = ByteBuffer.wrap(receive.getData());
+		System.out.println("SecretA: " + serverResponse.getInt(HEADER_SIZE + 12));
+		socket.close();		
+		return serverResponse;
+	}
+	
+	/**
+	 * Creates a new UDP socket and sets a timeout if desired
+	 * @param timeoutInMillis the timeout for the socket, if 0 no timeout is set
+	 */
+	private static DatagramSocket createUdpSocket(int timeoutInMillis) {
 		DatagramSocket socket;
 		try {
 			socket = new DatagramSocket();
@@ -127,33 +158,22 @@ public class Sockets {
 			System.out.println("Couldn't create socket");
 			return null;
 		}
-
-		ByteBuffer packetData = startPacket(12, 0);
-		packetData.put("hello world".getBytes());
 		
-		byte[] bytes = packetData.array();
-		DatagramPacket packet = new DatagramPacket(bytes, bytes.length, ipaddress, PORT);
-		try {
-			socket.send(packet);
-		} catch (IOException e) {
-			System.out.println("Couldn't send packet");
-			e.printStackTrace();
+		if(timeoutInMillis != 0) {
+			try {
+				socket.setSoTimeout(timeoutInMillis);
+			} catch (SocketException e1) {
+				System.out.println("Couldn't set timeout");
+			}
 		}
-		byte[] recPacket = new byte[28];
-		DatagramPacket receive = new DatagramPacket(recPacket, recPacket.length);
-		try {
-			socket.receive(receive);
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			System.out.println("Didn't receive packet");
-		}
-		ByteBuffer serverResponse = ByteBuffer.wrap(receive.getData());
-		socket.close();
-		
-		return serverResponse;
+		return socket;
 	}
 	
+	/**
+	 * Creates a new packet that is padded and has the header filled in.
+	 * @param payloadLen length of packet payload before padding
+	 * @param pSecret secret from previous stage
+	 */
 	private static ByteBuffer startPacket(int payloadLen, int pSecret) {
 		int paddedLen = payloadLen + HEADER_SIZE;
 		
@@ -162,14 +182,13 @@ public class Sockets {
 			paddedLen += 4 - (payloadLen % 4);
 		}
 		
+		// Set the header
 		ByteBuffer packetData = ByteBuffer.allocate(paddedLen);
 		packetData.putInt(payloadLen);
 		packetData.putInt(pSecret);
 		packetData.putShort((short) 1);
-		packetData.putShort((short) 980);
+		packetData.putShort(STUDENT_NUM);
 		
 		return packetData;
-				
 	}
-	
 }
