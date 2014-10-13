@@ -1,9 +1,6 @@
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -13,6 +10,14 @@ import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 
+/**
+ * @author Jordan Heier, Cameron Hardin, Will McNamara
+ *
+ * This program runs all stages of project 1 and will print out the secrets from
+ * each stage.
+ * 
+ * We use student #1266980 for our solution.
+ */
 public class Sockets {
     private static final String HOSTNAME = "amlia.cs.washington.edu";
     private static final int PORT = 12235;
@@ -24,21 +29,41 @@ public class Sockets {
 	public static void main(String[] args) {
 		
 		InetAddress ipAddress = getIpForHost();
+		
+		// Execute stage A
 		ByteBuffer responseA  = stageA(ipAddress);
+		if(responseA == null) {
+			System.out.println("Error in stage A");
+			return;
+		}
+		
+		// Execute stage B
 		ByteBuffer responseB = stageB(ipAddress, responseA);
+		if(responseB == null) {
+			System.out.println("Error in stage B");
+			return;
+		}
+		
+		// Execute stage C
 		ByteBuffer responseC = stageC(ipAddress, responseB);
-		stageD(ipAddress, responseC);
+		if(responseC == null) {
+			System.out.println("Error in stage C");
+			return;
+		}
+		
+		// Execute stage D
+		stageD(responseC);
 	}
 	
 	/**
-	 * Peforms stageA of the project
-	 * 
+	 * Performs stageA of the project
 	 * @param ipAddress ipAddress to send packets to
 	 * @return server response for stageA
 	 */
 	private static ByteBuffer stageA(InetAddress ipAddress) {
 		// Open UDP socket
 		DatagramSocket socket = createUDPSocket(0);
+		if(socket == null) return null;	
 
 		// Create packet to send
 		ByteBuffer packetData = startPacket(12, 0);
@@ -71,6 +96,12 @@ public class Sockets {
 		return serverResponse;
 	}
 	
+	/**
+	 * Performs stage B of the project
+	 * @param ipAddress the address to send packets to
+	 * @param responseA the server response from stage A
+	 * @return the server response from stage B
+	 */
 	private static ByteBuffer stageB(InetAddress ipAddress, ByteBuffer responseA) {
 		
 		// Parse packet received in stage A 
@@ -82,6 +113,7 @@ public class Sockets {
 				
 		// Set up the packet for sending
 		DatagramSocket socket = createUDPSocket(500);
+		if(socket == null) return null;
 		ByteBuffer packetData = startPacket(len, secretA);
 		
 		// Send num packets and wait for ACK each time
@@ -114,8 +146,9 @@ public class Sockets {
 			}
 			ByteBuffer serverResponse = ByteBuffer.wrap(receive.getData());	
 			if(serverResponse.getInt(HEADER_SIZE) != i) {
-				System.out.println("Received incorrect ACK, quitting");
-				return null;
+				System.out.println("Received incorrect ACK, resending");
+				i--;
+				continue;
 			}
 			
 		}
@@ -135,6 +168,12 @@ public class Sockets {
 		return serverResponse;
 	}
 
+	/**
+	 * Performs stage C of the project
+	 * @param ipAddress the address to send packets to
+	 * @param responseB the server response from the previous stage
+	 * @return the server response for this stage
+	 */
 	private static ByteBuffer stageC(InetAddress ipAddress, ByteBuffer responseB) {
 		int tcpPort = responseB.getInt(HEADER_SIZE);
 		int secretB = responseB.getInt(HEADER_SIZE + 4);
@@ -143,6 +182,7 @@ public class Sockets {
 		
 		 
 		tcpSocket = createTCPSocket(ipAddress, tcpPort, 0);
+		if(tcpSocket == null) return null;
 
 		InputStream in;
 		try {
@@ -154,13 +194,15 @@ public class Sockets {
 		
 		// Setup the response buffer
 		byte[] responsePacket = new byte[HEADER_SIZE + 13];
-		
-		try {
-			// Try to read in the server response
-			in.read(responsePacket);
-		} catch (IOException e) {
-			System.out.println("Failure reading server response");
-			return null;
+		int bytesRead = 0;
+		while(bytesRead < responsePacket.length) {
+			try {
+				// Try to read in the server response
+				bytesRead += in.read(responsePacket);
+			} catch (IOException e) {
+				System.out.println("Failure reading server response");
+				return null;
+			}
 		}
 		
 		ByteBuffer serverResponse = ByteBuffer.wrap(responsePacket);
@@ -169,16 +211,19 @@ public class Sockets {
 		return serverResponse;
 	}
 
-	private static void stageD(InetAddress ipAddress, ByteBuffer responseC) {
+	/**
+	 * Performs stage D of the project and prints out secret D
+	 * @param responseC the server response from stage C
+	 */
+	private static void stageD(ByteBuffer responseC) {
 		int num = responseC.getInt(HEADER_SIZE);
 		int len = responseC.getInt(HEADER_SIZE + 4);
 		int secretC = responseC.getInt(HEADER_SIZE + 8);
 		byte c = responseC.get(HEADER_SIZE + 12);
 		
-		ByteBuffer packetData = startPacket(len, secretC);
+		System.out.println("SecretC: " + secretC);
 		
-		// Align to 4 bytes so we can correctly fill the entire payload
-		len = (((len + 3) / 4) * 4);
+		ByteBuffer packetData = startPacket(len, secretC);
 		
 		// Fill the payload with copies of the character c
 		for (int i = HEADER_SIZE; i < (len + HEADER_SIZE); i++) {
@@ -213,15 +258,17 @@ public class Sockets {
 		
 		// Setup the response buffer
 		byte[] responsePacket = new byte[HEADER_SIZE + 4];
-		
-		try {
-			// Try to read in the server response
-			int bread = in.read(responsePacket);
-		} catch (IOException e) {
-			System.out.println("Failure reading response");
-			return;
+		int bytesRead = 0;
+		while(bytesRead < responsePacket.length) {
+			try {
+				// Try to read in the server response
+				bytesRead += in.read(responsePacket);
+			} catch (IOException e) {
+				System.out.println("Failure reading response");
+				return;
+			}
 		}
-		
+			
 		ByteBuffer serverResponse = ByteBuffer.wrap(responsePacket);
 		
 		System.out.println("SecretD: " + serverResponse.getInt(HEADER_SIZE));
@@ -233,6 +280,9 @@ public class Sockets {
 		}
 	}
 
+	/**
+	 * @return the InetAddress of the static field HOSTNAME
+	 */
 	private static InetAddress getIpForHost() {
 		try {
 	      return InetAddress.getByName(HOSTNAME);
@@ -251,7 +301,7 @@ public class Sockets {
 		try {
 			socket = new DatagramSocket();
 		} catch (SocketException e1) {
-			System.out.println("Couldn't create socket");
+			System.out.println("Couldn't create UDP socket");
 			return null;
 		}
 		
@@ -265,7 +315,15 @@ public class Sockets {
 		return socket;
 	}
 	
-	private static Socket createTCPSocket(InetAddress ipAddress, int port, int timeoutInMillis) {
+	/**
+	 * Creates a new TCP socket
+	 * @param ipAddress the address to connect to
+	 * @param port the port to open the connection on
+	 * @param timeoutInMillis the timeout to receive data, or 0 if no timeout desired
+	 * @return
+	 */
+	private static Socket createTCPSocket(InetAddress ipAddress, int port, 
+			int timeoutInMillis) {
 		Socket socket;
 		try {
 			socket = new Socket(ipAddress, port);
